@@ -85,6 +85,29 @@ class PReluFunctor {
   std::shared_ptr<OpExpr> op_;
 };
 
+class GnnAggregateFunctor {
+ public:
+  GnnAggregateFunctor() {
+    gnn_aggregate_op_ = CHECK_JUST(
+        one::OpBuilder("gnn_aggregate").Input("w_self").Input("h_k").Input("b").Output("y").Build());
+  }
+
+  Maybe<Tensor> operator()(const std::shared_ptr<one::Tensor>& w_self,const std::shared_ptr<one::Tensor>& h_k,
+                           const std::shared_ptr<one::Tensor>& b) const {
+    const auto& w_self_shape = w_self->shape();
+    const auto& h_k_shape = h_k->shape();
+    const auto& b_shape = b->shape();
+    CHECK_OR_RETURN(w_self_shape->NumAxes() == 2 && b_shape->NumAxes() == 1 && h_k_shape->NumAxes() == 2)
+        << Error::RuntimeError() << "vector + matrix @ vector expected, got "
+        << "1, " << w_self_shape->NumAxes() << ", " << b_shape->NumAxes();
+    
+    return OpInterpUtil::Dispatch<Tensor>(*gnn_aggregate_op_, {w_self, h_k, b});
+  }
+
+ private:
+  std::shared_ptr<OpExpr> gnn_aggregate_op_;
+};
+
 class PReluGradFunctor {
  public:
   PReluGradFunctor() {
@@ -809,6 +832,7 @@ ONEFLOW_FUNCTION_LIBRARY(m) {
   m.add_functor<impl::ThresholdGradFunctor>("ThresholdGrad");
   m.add_functor<impl::SoftShrinkFunctor>("SoftShrink");
   m.add_functor<impl::SoftShrinkGradFunctor>("SoftShrinkGrad");
+  m.add_functor<impl::GnnAggregateFunctor>("GnnAggregate");
 };
 
 }  // namespace functional

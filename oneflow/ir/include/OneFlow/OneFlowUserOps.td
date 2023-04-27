@@ -5249,6 +5249,21 @@ def OneFlow_MatmulOp : OneFlow_BaseOp<"matmul", [NoMemoryEffect, DeclareOpInterf
   let has_compute_complexity_fn = 1;
 }
 
+def OneFlow_GnnAggregateOp : OneFlow_BaseOp<"gnn_aggregate", [NoMemoryEffect, DeclareOpInterfaceMethods<UserOpCompatibleInterface>, DeclareOpInterfaceMethods<MatMulCompatibleInterface>]> {
+  let input = (ins
+    OneFlow_Tensor:$w_self,
+    OneFlow_Tensor:$h_k,
+    OneFlow_Tensor:$b
+  );
+  let output = (outs
+    OneFlow_Tensor:$y
+  );
+  let has_logical_tensor_desc_infer_fn = 1;
+  let has_physical_tensor_desc_infer_fn = 1;
+  let has_get_sbp_fn = 1;
+  let has_data_type_infer_fn = 1;
+}
+
 def OneFlow_MatrixVectorProductOp : OneFlow_BaseOp<"matrix_vector_product", [NoMemoryEffect, DeclareOpInterfaceMethods<UserOpCompatibleInterface>]> {
   let input = (ins
     OneFlow_Tensor:$a,
