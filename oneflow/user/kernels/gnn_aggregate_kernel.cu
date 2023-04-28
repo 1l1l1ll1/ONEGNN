@@ -37,6 +37,24 @@ __global__ void GnnAggregateForwardGpu(const T* w_self, const T* h_k, const T* b
   }
 }
 
+template<typename T>
+__global__ void GnnAggregateForwardGpuSin(const T* w_self, const T* h_k, const T* b, T* y, int64_t N) {
+  // Compute each thread's global row and column index
+  int64_t thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+  int64_t row = thread_id / N;
+  int64_t col = thread_id % N;
+
+  // Iterate over row, and down column
+  y[row * N + col] = 0;
+  for (int k = 0; k < N; k++) {
+    // Accumulate results for a single element
+    y[row * N + col] += w_self[row * N + k] * h_k[k * N + col];
+  }
+  y[row * N + col] += b[col]; 
+  
+}
+
 }  // namespace
 
 template<typename T>
@@ -64,30 +82,30 @@ class GnnAggregateKernel final : public user_op::OpKernel {
     CHECK_EQ(y->shape_view().NumAxes(), 2) << "y Numdims should be equal to 2. ";
     CHECK_EQ(y->data_type(), data_type) << "y Datatype should be equal to input's. ";
 
-    //const int32_t elem_cnt = (w_self->shape_view().At(0)) * (w_self->shape_view().At(1));
-
     //std::cout << "int32_t elem_cnt = (w_self->shape_view().At(0)) * (w_self->shape_view().At(1)) = " << elem_cnt << std::endl;
     
     int64_t N = w_self->shape_view().At(0);
 
     std::cout << "int N = w_self->shape_view().At(0) = " << N << std::endl;
 
-    int THREADS = 32; 
-    /* if(N < 256){
-      int THREADS = N;
-    } */
-    //int THREADS_NUM = THREADS * THREADS;
+    //使用二维索引
+    /* int THREADS = 32; 
 
     int BLOCKS = (N + THREADS - 1) / THREADS;
-    //int BLOCKS = (elem_cnt + THREADS_NUM - 1) / THREADS_NUM;
-
+    
     dim3 threads(THREADS, THREADS);
     dim3 blocks(BLOCKS, BLOCKS);
    
-    GnnAggregateForwardGpu<T><<<blocks, threads>>>(w_self->dptr<T>(), h_k->dptr<T>(), b->dptr<T>(), y->mut_dptr<T>(), N);
+    GnnAggregateForwardGpu<T><<<blocks, threads>>>(w_self->dptr<T>(), h_k->dptr<T>(), b->dptr<T>(), y->mut_dptr<T>(), N); */
 
     //RUN_CUDA_KERNEL((GnnAggregateForwardGpu<T>), ctx->stream(), elem_cnt,
     //w_self->dptr<T>(), h_k->dptr<T>(), b->dptr<T>(), y->mut_dptr<T>(), N);
+
+    //使用一维索引
+    const int32_t elem_cnt = (w_self->shape_view().At(0)) * (w_self->shape_view().At(1));
+    int threads = 256;
+    int blocks = (elem_cnt + threads - 1) / threads;
+    GnnAggregateForwardGpuSin<T><<<blocks, threads>>>(w_self->dptr<T>(), h_k->dptr<T>(), b->dptr<T>(), y->mut_dptr<T>(), N);
 
   }
   bool AlwaysComputeWhenAllOutputsEmpty() const override { return false; }
